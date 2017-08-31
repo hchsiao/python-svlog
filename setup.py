@@ -24,7 +24,7 @@ setup(
   # Versions should comply with PEP440.  For a discussion on single-sourcing
   # the version across setup.py and the project code, see
   # https://packaging.python.org/en/latest/single_source_version.html
-  version='0.0.2',
+  version='0.0.3',
 
   description='Verilog development framework with DPI-python verification utils',
   long_description=long_description,
@@ -33,7 +33,7 @@ setup(
   url='https://github.com/hchsiao/python-svlog',
 
   # Author details
-  author='Hsiang-Chih Hchsiao',
+  author='Hsiang-Chih Hsiao',
   author_email='hchsiao@vlsilab.ee.ncku.edu.tw',
 
   # Choose your license
