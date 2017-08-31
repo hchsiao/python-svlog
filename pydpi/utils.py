@@ -1,12 +1,27 @@
 import string
-import os
+import os.path
+import subprocess
+import shutil
+import anyconfig
 
-input_path = './src/'
-prefix = 'cache/'
 this_dir, this_filename = os.path.split(__file__)
 tmpl_dir = os.path.join(this_dir, "templates/")
-print('prefix: {}'.format(prefix))
+home_dir = os.path.expanduser('~')
+config_file = os.path.join(home_dir, '.python-svlog-cfg')
+if not os.path.isfile(config_file):
+  anyconfig.dump({
+    'input_path': './src/',
+    'prefix': 'cache/',
+    'dpi_inc': '/opt/Cadence/INCISIV/cur/tools/include',
+    'py_cfg': 'python-config',
+    }, config_file, 'yaml')
+  print('Created {} since it does not exist. Please fill the fields and re-run'.format(config_file))
+  exit(1)
+else:
+  conf = anyconfig.load(config_file, 'yaml')
+  input_path = conf['input_path']
 
+CC = 'gcc'
 FILE_SIZE_LMT = 1000000 # 1 MiB
 PYDPI_FILE_FEAT_STR = 'pydpi.export('
 PYDPI_PARAM_NAME_RETVAL = 'retval_width'
@@ -30,19 +45,45 @@ def is_candidate_file(fname):
   else:
     return True
 
+def call(arg_list, env=None):
+  if not env is None:
+    process = subprocess.Popen(arg_list, env=env, stdout=subprocess.PIPE)
+  else:
+    process = subprocess.Popen(arg_list, stdout=subprocess.PIPE)
+  while True:
+    line = process.stdout.readline()
+    if line != b'':
+      os.write(1, line)
+    else:
+      break
+  stdoutdata, stderrdata = process.communicate()
+  return process.returncode
+
+def copytree(src, dst, symlinks=False, ignore=None):
+  for item in os.listdir(src):
+    s = os.path.join(src, item)
+    d = os.path.join(dst, item)
+    if os.path.isdir(s):
+      shutil.copytree(s, d, symlinks, ignore)
+    else:
+      shutil.copy2(s, d)
+
 def gen(tmpl_fname, params):
   tmpl_file = open(tmpl_dir + tmpl_fname)
   tmpl = tmpl_file.read()
 
   fname = tmpl_fname.format(**params)
-  f = open(prefix + fname, 'w')
+  f = open(conf['prefix'] + fname, 'w')
   f.write(tmpl.format(**params))
   f.close()
 
 def run_gen():
+  if not os.path.exists(conf['prefix']):
+    os.mkdir(conf['prefix'])
+
   gen('pydpi_gen_common.sv', {})
 
-  f = open(prefix + 'pydpi_gen_registration.py', 'w')
+  f = open(conf['prefix'] + 'pydpi_gen_registration.py', 'w')
   func_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn)]
   f.write(string.join(['import ' + fn for fn in func_file_list], '\n'))
   f.write('\nimport pydpi\n')
@@ -134,3 +175,25 @@ def run_gen():
       'stmnt_wbuf': stmnt_wbuf.strip(),
       'stmnt_rbuf': stmnt_rbuf.strip(),
       })
+
+def run_build_bridge():
+  kwargs = {
+      'in_file': os.path.join(this_dir, 'src/bridge/ies/invoke.c'),
+      'out_file': os.path.join(conf['prefix'], 'invoke.so'),
+      'inc': conf['dpi_inc'],
+      'cflags': subprocess.check_output([conf['py_cfg'], '--cflags']),
+      'ldflags': subprocess.check_output([conf['py_cfg'], '--ldflags']),
+      }
+  flags = '-fPIC -shared -o {out_file} {in_file} -I{inc} {cflags} {ldflags}'.format(**kwargs)
+  assert 0 == call([CC] + flags.split())
+  print('Build success')
+
+def run_run():
+  kwargs = {
+      }
+  flags = '+nc64bit +sv +sv_lib=./cache/invoke.so +access+r +incdir+"./cache" -mccodegen cache/test.sv'.format(**kwargs)
+  my_env = os.environ.copy()
+  my_env["PYTHONPATH"] = "./cache:" + my_env["PYTHONPATH"]
+  copytree(input_path, conf['prefix'])
+  assert 0 == call(['ncverilog'] + flags.split(), env=my_env)
+  print('pydpi done')

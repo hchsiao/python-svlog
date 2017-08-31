@@ -1,7 +1,7 @@
 #include <Python.h>
 #include <svdpi.h>
 
-#define PY_MOD "dispatch"
+#define PY_MOD "pydpi.dispatch"
 #define PY_FUNC_DESTROY "_Destroy"
 #define PY_FUNC_TRIGGER "_Eval"
 #define PY_FUNC_SET "_Set"
