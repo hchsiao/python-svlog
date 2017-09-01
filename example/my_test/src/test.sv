@@ -1,4 +1,4 @@
-`include "mod_mem.sv"
+`include "pydpi_gen_mod_my_mod.sv"
 
 module test;
   parameter CLK_PERIOD = 10;
@@ -19,8 +19,8 @@ module test;
 
 	end
 
-  mod_mem #(
-  )IM(
+  my_mod #(
+  )MOD1(
     .out(out),
     .clk(clk),
     .reset(reset)

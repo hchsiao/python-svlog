@@ -5,22 +5,39 @@ import importlib
 
 mods = {}
 
+PORT_OUTPUT = 1
+def OUTPUT(width):
+  return PORT_OUTPUT, width
+PORT_OUTPUT_REG = 2
+def OUTPUT_REG(width):
+  return PORT_OUTPUT_REG, width
+PORT_INPUT = 3
+def INPUT(width):
+  return PORT_INPUT, width
+PORT_INPUT_CLOCK = 4
+def INPUT_CLOCK():
+  return PORT_INPUT_CLOCK, 1
+
 class Wires:
   def __init__(self, width):
     self.width = width
 
-class VFunctionHandle:
+class SvModule:
+  def __init__(self):
+    print('SvModule created')
+
+class SvFunctionHandle:
   func_name_list = []
   func_map = {}
 
   @staticmethod
   def get_func_hndl_by_id(idx):
-    f_name = VFunctionHandle.func_name_list[idx]
-    return VFunctionHandle.func_map[f_name]
+    f_name = SvFunctionHandle.func_name_list[idx]
+    return SvFunctionHandle.func_map[f_name]
 
   @staticmethod
   def get_func_hndl_by_name(f_name):
-    return VFunctionHandle.func_map[f_name]
+    return SvFunctionHandle.func_map[f_name]
 
   def __init__(self, name, mod_name, retval_width=None, params_width=None):
     self.retval_width = retval_width
@@ -31,8 +48,8 @@ class VFunctionHandle:
     param_required_byte = (param_width_total+7)/8
     retval_required_byte = (retval_width+7)/8
     self.buf = ['\0'] * max(param_required_byte, retval_required_byte)
-    VFunctionHandle.func_name_list.append(name)
-    VFunctionHandle.func_map[name] = self
+    SvFunctionHandle.func_name_list.append(name)
+    SvFunctionHandle.func_map[name] = self
 
   def __call__(self):
     # unpack each arg
@@ -63,14 +80,14 @@ class VFunctionHandle:
     self.buf[:retval_required_byte] = retval_pack[:retval_required_byte]
 
 def get_func_hndl(idx):
-  return VFunctionHandle.get_func_hndl_by_id(idx)
+  return SvFunctionHandle.get_func_hndl_by_id(idx)
 
 def export(name, retval_width=None, params_width=None):
   callback = None
   stk = inspect.stack()[1]
   mod = inspect.getmodule(stk[0])
   mod_name = mod.__name__
-  hndl = VFunctionHandle(name, mod_name, retval_width, params_width)
+  hndl = SvFunctionHandle(name, mod_name, retval_width, params_width)
 
 def __reg_mod(mod):
   mods[mod.__name__] = mod

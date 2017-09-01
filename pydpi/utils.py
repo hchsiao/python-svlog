@@ -1,4 +1,3 @@
-import string
 import os.path
 import subprocess
 import shutil
@@ -23,14 +22,15 @@ else:
 
 CC = 'gcc'
 FILE_SIZE_LMT = 1000000 # 1 MiB
-PYDPI_FILE_FEAT_STR = 'pydpi.export('
+PYDPI_FILE_FEAT_STR_FUNC = 'pydpi.export'
+PYDPI_FILE_FEAT_STR_MOD = 'pydpi.SvModule'
 PYDPI_PARAM_NAME_RETVAL = 'retval_width'
 PYDPI_PARAM_NAME_PARAM = 'params_width'
 PYDPI_SYS_WORD_IN = 'input [{msb}:0] pydpi_arg{idx};'
 PYDPI_SYS_WBUF = 'PyDPI_buf_write(PYDPI_FUNC_{func_name}, {buf_addr}, {{{data}}});'
 PYDPI_SYS_RBUF = 'tmp = PyDPI_buf_read(PYDPI_FUNC_{func_name}, {buf_addr});'
 PYDPI_SYS_FLUSH = '{func_name}[{retval_msb}:{retval_lsb}] = tmp[{msb}:{lsb}];'
-def is_candidate_file(fname):
+def is_candidate_file(fname, feat_str=None):
   fpath = input_path + fname
   if not os.path.isfile(fpath):
     return False
@@ -40,9 +40,11 @@ def is_candidate_file(fname):
     return False
   elif os.path.getsize(fpath) > FILE_SIZE_LMT:
     return False
-  elif not PYDPI_FILE_FEAT_STR in open(fpath).read():
-    return False
   else:
+    if not feat_str is None:
+      src = open(fpath).read()
+      if not feat_str in src:
+        return False
     return True
 
 def call(arg_list, env=None):
@@ -78,13 +80,14 @@ def gen(tmpl_fname, params):
   f.close()
 
 def run_gen():
+  import string
   if not os.path.exists(conf['prefix']):
     os.mkdir(conf['prefix'])
 
   gen('pydpi_gen_common.sv', {})
 
   f = open(conf['prefix'] + 'pydpi_gen_registration.py', 'w')
-  func_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn)]
+  func_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn, PYDPI_FILE_FEAT_STR_FUNC)]
   f.write(string.join(['import ' + fn for fn in func_file_list], '\n'))
   f.write('\nimport pydpi\n')
   f.write(string.join(['pydpi.__reg_mod(' + fn + ')' for fn in func_file_list], '\n'))
@@ -175,6 +178,79 @@ def run_gen():
       'stmnt_wbuf': stmnt_wbuf.strip(),
       'stmnt_rbuf': stmnt_rbuf.strip(),
       })
+
+def run_gen_mod():
+  import importlib
+  import sys
+  if not os.path.exists(conf['prefix']):
+    os.mkdir(conf['prefix'])
+
+  import pydpi
+  sys.path.insert(0, conf['prefix'])
+
+  mod_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn, PYDPI_FILE_FEAT_STR_MOD)]
+  for fn in mod_file_list:
+    _mod = importlib.import_module(fn)
+    _mod_class = getattr(_mod, fn)
+    io_spec = _mod_class.io_spec
+
+    ports_str = ''
+    i_ports_str = ''
+    i_ports_width = ''
+    for port_name in io_spec:
+      port_type, port_width = io_spec[port_name]
+      if port_type == pydpi.PORT_OUTPUT:
+        type_str = 'output wire'
+      elif port_type == pydpi.PORT_OUTPUT_REG:
+        type_str = 'output reg'
+      elif port_type == pydpi.PORT_INPUT:
+        type_str = 'input wire'
+        i_ports_str += '{}, '.format(port_name)
+        i_ports_width += '{}, '.format(port_width)
+      elif port_type == pydpi.PORT_INPUT_CLOCK:
+        type_str = 'input wire'
+      else:
+        assert False
+      width_str = '[{}:0]'.format(port_width - 1)
+      port_str = '{} {} {},\n'.format(type_str, width_str, port_name)
+      ports_str += port_str
+    ports_str = ports_str[:-2]
+    i_ports_str = i_ports_str[:-2]
+    i_ports_width = i_ports_width[:-2]
+
+    func_declarations = ''
+    assigns_str = ''
+    state_update_str = ''
+    py_func_str = ''
+    for port_name in io_spec:
+      port_type, port_width = io_spec[port_name]
+      if port_type == pydpi.PORT_OUTPUT:
+        assigns_str += 'assign {1} = _pydpi_module_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
+      elif port_type == pydpi.PORT_OUTPUT_REG:
+        state_update_str += '{1} <= _pydpi_module_{0}_func_{1}({2});'.format(fn, port_name, i_ports_str)
+
+      if port_type == pydpi.PORT_OUTPUT or port_type == pydpi.PORT_OUTPUT_REG:
+        func_declarations += '`include "pydpi_gen_func__pydpi_mod_{}_func_{}.sv"\n'.format(fn, port_name)
+        py_func_str += ('pydpi.export("_pydpi_mod_{0}_func_{1}", retval_width={2}, params_width=({3}))\n'
+          + 'def _pydpi_module_{0}_func_{1}({4}):\n'
+          + '  return _inst.{1}({4})\n\n').format(fn, port_name, port_width, i_ports_width, i_ports_str)
+
+    func_declarations = func_declarations[:-1]
+    assigns_str = assigns_str[:-1]
+    state_update_str = state_update_str[:-1]
+
+    gen('pydpi_gen_mod_{mod_name}.sv', {
+      'mod_name': fn,
+      'ports_str': ports_str,
+      'func_declarations': func_declarations,
+      'assigns_str': assigns_str,
+      'state_update_str': state_update_str,
+      })
+    gen('pydpi_gen_funcs_{mod_name}.py', {
+      'mod_name': fn,
+      'py_func_str': py_func_str,
+      })
+
 
 def run_build_bridge():
   kwargs = {
