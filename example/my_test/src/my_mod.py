@@ -2,7 +2,7 @@ import pydpi
 
 class my_mod(pydpi.SvModule):
   io_spec = {
-    'out': pydpi.OUTPUT_REG(4),
+    'out': pydpi.OUTPUT_REG(1),
     'reset': pydpi.INPUT(1),
     'clk': pydpi.INPUT_CLOCK(),
   }

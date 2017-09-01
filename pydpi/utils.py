@@ -19,6 +19,9 @@ if not os.path.isfile(config_file):
 else:
   conf = anyconfig.load(config_file, 'yaml')
   input_path = conf['input_path']
+  prefix = conf['prefix']
+  py_prefix = os.path.join(prefix, 'python/')
+  sv_prefix = os.path.join(prefix, 'svlog/')
 
 CC = 'gcc'
 FILE_SIZE_LMT = 1000000 # 1 MiB
@@ -30,8 +33,9 @@ PYDPI_SYS_WORD_IN = 'input [{msb}:0] pydpi_arg{idx};'
 PYDPI_SYS_WBUF = 'PyDPI_buf_write(PYDPI_FUNC_{func_name}, {buf_addr}, {{{data}}});'
 PYDPI_SYS_RBUF = 'tmp = PyDPI_buf_read(PYDPI_FUNC_{func_name}, {buf_addr});'
 PYDPI_SYS_FLUSH = '{func_name}[{retval_msb}:{retval_lsb}] = tmp[{msb}:{lsb}];'
-def is_candidate_file(fname, feat_str=None):
-  fpath = input_path + fname
+def is_candidate_file(fname, feat_str=None, prefix=None):
+  prefix = input_path if prefix is None else prefix
+  fpath = prefix + fname
   if not os.path.isfile(fpath):
     return False
   elif fname[0] == '.':
@@ -70,42 +74,46 @@ def copytree(src, dst, symlinks=False, ignore=None):
     else:
       shutil.copy2(s, d)
 
-def gen(tmpl_fname, params):
+def gen(tmpl_fname, params=None, prefix=None):
   tmpl_file = open(tmpl_dir + tmpl_fname)
   tmpl = tmpl_file.read()
 
+  params = {} if params is None else params
+  prefix = prefix if prefix is None else prefix
   fname = tmpl_fname.format(**params)
-  f = open(conf['prefix'] + fname, 'w')
+  f = open(os.path.join(prefix, fname), 'w')
   f.write(tmpl.format(**params))
   f.close()
 
 def run_gen():
   import string
-  if not os.path.exists(conf['prefix']):
-    os.mkdir(conf['prefix'])
 
-  gen('pydpi_gen_common.sv', {})
+  gen('pydpi_gen_common.sv', prefix=sv_prefix)
 
-  f = open(conf['prefix'] + 'pydpi_gen_registration.py', 'w')
-  func_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn, PYDPI_FILE_FEAT_STR_FUNC)]
-  f.write(string.join(['import ' + fn for fn in func_file_list], '\n'))
-  f.write('\nimport pydpi\n')
-  f.write(string.join(['pydpi.__reg_mod(' + fn + ')' for fn in func_file_list], '\n'))
-  f.close()
+  # code-gen for intermediate codes store in py_prefix
+  input_path = py_prefix
+
+  registration_str = ''
+  func_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn, PYDPI_FILE_FEAT_STR_FUNC, py_prefix)]
+  registration_str += string.join(['import ' + fn for fn in func_file_list], '\n')
+  registration_str += '\nimport pydpi\n'
+  registration_str += string.join(['pydpi.__reg_mod(' + fn + ')' for fn in func_file_list], '\n')
+  gen('pydpi_gen_registration.py', params={
+    'registration_str': registration_str,
+    }, prefix=py_prefix)
 
   func_specs = {}
   for fn in func_file_list:
     src = open(input_path + fn + '.py').read().split('\n')
-    export_statements = [line for line in src if PYDPI_FILE_FEAT_STR in line]
+    export_statements = [line for line in src if PYDPI_FILE_FEAT_STR_FUNC in line]
     for stmnt in export_statements:
-      stmnt = stmnt.replace(PYDPI_FILE_FEAT_STR, '').replace('\'', '')[:-1]
-      stmnt = stmnt.replace(PYDPI_PARAM_NAME_RETVAL, '\n'+PYDPI_PARAM_NAME_RETVAL)
-      stmnt = stmnt.replace(PYDPI_PARAM_NAME_PARAM, '\n'+PYDPI_PARAM_NAME_PARAM)
-      func_name = stmnt.split('\n')[0].strip().replace(',','')
+      args = stmnt.replace(PYDPI_FILE_FEAT_STR_FUNC, '').split(',')
+      args = [arg.strip(' \'"(),').replace('(', '') for arg in args]
+      func_name = args[0]
       for i in range(1, 3):
-        arg = stmnt.split('\n')[i]
+        arg = args[i]
         argn = arg.split('=')[0]
-        argv = arg.split('=')[1].strip()[:-1].replace('(', '').replace(')', '').replace(' ', '')
+        argv = arg.split('=')[1]
         if argn == PYDPI_PARAM_NAME_RETVAL:
           retval_width = int(argv)
         elif argn == PYDPI_PARAM_NAME_PARAM:
@@ -171,25 +179,33 @@ def run_gen():
         'msb': read_width - 1,
         'lsb': 0,
         }) + '\n    '
-    gen('pydpi_gen_func_{func_name}.sv', {
+    gen('pydpi_gen_func_{func_name}.sv', params={
       'func_name': func_name,
       'retval_msb': out_width-1,
       'decl_input': decl_input.strip(),
       'stmnt_wbuf': stmnt_wbuf.strip(),
       'stmnt_rbuf': stmnt_rbuf.strip(),
-      })
+      }, prefix=sv_prefix)
+
+def run_gen_param():
+  print 'TODO' # TODO: e.g. `WIN_SIZE -> `PyDPI__WIN_SIZE
 
 def run_gen_mod():
   import importlib
   import sys
-  if not os.path.exists(conf['prefix']):
-    os.mkdir(conf['prefix'])
+  if not os.path.exists(prefix):
+    os.mkdir(prefix)
+  if not os.path.exists(py_prefix):
+    os.mkdir(py_prefix)
+  if not os.path.exists(sv_prefix):
+    os.mkdir(sv_prefix)
 
   import pydpi
-  sys.path.insert(0, conf['prefix'])
+  sys.path.insert(0, py_prefix)
 
   mod_file_list = [fn[:-3] for fn in os.listdir(input_path) if is_candidate_file(fn, PYDPI_FILE_FEAT_STR_MOD)]
   for fn in mod_file_list:
+    shutil.copy(os.path.join(input_path, fn+'.py'), py_prefix)
     _mod = importlib.import_module(fn)
     _mod_class = getattr(_mod, fn)
     io_spec = _mod_class.io_spec
@@ -216,7 +232,6 @@ def run_gen_mod():
       ports_str += port_str
     ports_str = ports_str[:-2]
     i_ports_str = i_ports_str[:-2]
-    i_ports_width = i_ports_width[:-2]
 
     func_declarations = ''
     assigns_str = ''
@@ -225,37 +240,37 @@ def run_gen_mod():
     for port_name in io_spec:
       port_type, port_width = io_spec[port_name]
       if port_type == pydpi.PORT_OUTPUT:
-        assigns_str += 'assign {1} = _pydpi_module_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
+        assigns_str += 'assign {1} = _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
       elif port_type == pydpi.PORT_OUTPUT_REG:
-        state_update_str += '{1} <= _pydpi_module_{0}_func_{1}({2});'.format(fn, port_name, i_ports_str)
+        state_update_str += '{1} <= _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
 
       if port_type == pydpi.PORT_OUTPUT or port_type == pydpi.PORT_OUTPUT_REG:
         func_declarations += '`include "pydpi_gen_func__pydpi_mod_{}_func_{}.sv"\n'.format(fn, port_name)
         py_func_str += ('pydpi.export("_pydpi_mod_{0}_func_{1}", retval_width={2}, params_width=({3}))\n'
-          + 'def _pydpi_module_{0}_func_{1}({4}):\n'
+          + 'def _pydpi_mod_{0}_func_{1}({4}):\n'
           + '  return _inst.{1}({4})\n\n').format(fn, port_name, port_width, i_ports_width, i_ports_str)
 
     func_declarations = func_declarations[:-1]
     assigns_str = assigns_str[:-1]
     state_update_str = state_update_str[:-1]
 
-    gen('pydpi_gen_mod_{mod_name}.sv', {
+    gen('pydpi_gen_mod_{mod_name}.sv', params={
       'mod_name': fn,
       'ports_str': ports_str,
       'func_declarations': func_declarations,
       'assigns_str': assigns_str,
       'state_update_str': state_update_str,
-      })
-    gen('pydpi_gen_funcs_{mod_name}.py', {
+      }, prefix=sv_prefix)
+    gen('pydpi_gen_funcs_{mod_name}.py', params={
       'mod_name': fn,
       'py_func_str': py_func_str,
-      })
+      }, prefix=py_prefix)
 
 
 def run_build_bridge():
   kwargs = {
-      'in_file': os.path.join(this_dir, 'src/bridge/ies/invoke.c'),
-      'out_file': os.path.join(conf['prefix'], 'invoke.so'),
+      'in_file': os.path.join(this_dir, 'src/bridge/ies/pydpi_bridge.c'),
+      'out_file': os.path.join(prefix, 'pydpi_bridge.so'),
       'inc': conf['dpi_inc'],
       'cflags': subprocess.check_output([conf['py_cfg'], '--cflags']),
       'ldflags': subprocess.check_output([conf['py_cfg'], '--ldflags']),
@@ -267,9 +282,9 @@ def run_build_bridge():
 def run_run():
   kwargs = {
       }
-  flags = '+nc64bit +sv +sv_lib=./cache/invoke.so +access+r +incdir+"./cache" -mccodegen cache/test.sv'.format(**kwargs)
+  flags = '+nc64bit +sv +sv_lib=./cache/pydpi_bridge.so +access+r +incdir+"./cache/svlog" -mccodegen cache/test.sv'.format(**kwargs)
   my_env = os.environ.copy()
-  my_env["PYTHONPATH"] = "./cache:" + my_env["PYTHONPATH"]
-  copytree(input_path, conf['prefix'])
+  my_env["PYTHONPATH"] = "./cache/python:" + my_env["PYTHONPATH"]
+  copytree(input_path, prefix)
   assert 0 == call(['ncverilog'] + flags.split(), env=my_env)
   print('pydpi done')

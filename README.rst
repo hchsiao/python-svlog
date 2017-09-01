@@ -11,4 +11,8 @@ pydpi-build
 
 pydpi-run
 
-TODO: insert file headers
+TODO: 
+test current example
+param gen (example)
+insert file headers
+aos
