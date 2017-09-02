@@ -7,23 +7,35 @@ this_dir, this_filename = os.path.split(__file__)
 tmpl_dir = os.path.join(this_dir, "templates/")
 home_dir = os.path.expanduser('~')
 config_file = os.path.join(home_dir, '.python-svlog-cfg')
+config_file = 'svlog-cfg.yaml' # TODO: use multi config files
 if not os.path.isfile(config_file):
+  pretty_json = {
+      'sort_keys': True,
+      'indent': 2,
+      'separators': (',', ': '),
+      }
   anyconfig.dump({
-    'input_path': './src/',
-    'prefix': 'cache/',
-    'dpi_inc': '/opt/Cadence/INCISIV/cur/tools/include',
-    'py_cfg': 'python-config',
-    }, config_file, 'yaml')
+    'env': {
+      'input_path': './src/',
+      'prefix': 'cache/',
+      'dpi_inc': '/opt/Cadence/INCISIV/cur/tools/include',
+      'py_cfg': 'python-config',
+      'cc': 'gcc',
+      },
+    'params': {
+      'EXAMPLE_PARAM': 5
+      },
+    }, config_file, 'json', **pretty_json)
   print('Created {} since it does not exist. Please fill the fields and re-run'.format(config_file))
   exit(1)
 else:
-  conf = anyconfig.load(config_file, 'yaml')
+  conf = anyconfig.load(config_file, 'json')
   input_path = conf['input_path']
   prefix = conf['prefix']
   py_prefix = os.path.join(prefix, 'python/')
   sv_prefix = os.path.join(prefix, 'svlog/')
 
-CC = 'gcc'
+CC = conf['cc']
 FILE_SIZE_LMT = 1000000 # 1 MiB
 PYDPI_FILE_FEAT_STR_FUNC = 'pydpi.export'
 PYDPI_FILE_FEAT_STR_MOD = 'pydpi.SvModule'
