@@ -10,8 +10,10 @@ module test;
     clk = ~clk;
   end
 
+  wire [6:0] mod_out;
+  wire [4:0] mod_in = 3;
 	initial begin
-    $monitor("out=%d", out);
+    $monitor("mod_out=%d", mod_out);
     clk = 0;
     reset = 1;
     #(CLK_PERIOD*1) reset = 0;
@@ -21,7 +23,8 @@ module test;
 
   my_mod #(
   )MOD1(
-    .out(out),
+    .mod_out(mod_out),
+    .mod_in(mod_in),
     .clk(clk),
     .reset(reset)
   );

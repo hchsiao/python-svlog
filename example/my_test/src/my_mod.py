@@ -2,9 +2,14 @@ import pydpi
 
 class my_mod(pydpi.SvModule):
   io_spec = {
-    'out': pydpi.OUTPUT_REG(1),
+    'mod_out': pydpi.OUTPUT_REG(7),
+    'mod_in': pydpi.INPUT(5),
     'reset': pydpi.INPUT(1),
     'clk': pydpi.INPUT_CLOCK(),
   }
-  def out(self, reset):
-    return 0 if reset else 1
+  def mod_out(self, reset, mod_in):
+    if reset == 1:
+      self.state = 0
+    else:
+      self.state += mod_in
+    return self.state

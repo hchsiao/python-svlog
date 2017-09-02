@@ -75,7 +75,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
       shutil.copy2(s, d)
 
 def gen(tmpl_fname, params=None, prefix=None):
-  tmpl_file = open(tmpl_dir + tmpl_fname)
+  tmpl_file = open(tmpl_dir + tmpl_fname + '.tmpl')
   tmpl = tmpl_file.read()
 
   params = {} if params is None else params
@@ -87,6 +87,7 @@ def gen(tmpl_fname, params=None, prefix=None):
 
 def run_gen():
   import string
+  import ast
 
   gen('pydpi_gen_common.sv', prefix=sv_prefix)
 
@@ -107,17 +108,17 @@ def run_gen():
     src = open(input_path + fn + '.py').read().split('\n')
     export_statements = [line for line in src if PYDPI_FILE_FEAT_STR_FUNC in line]
     for stmnt in export_statements:
-      args = stmnt.replace(PYDPI_FILE_FEAT_STR_FUNC, '').split(',')
-      args = [arg.strip(' \'"(),').replace('(', '') for arg in args]
-      func_name = args[0]
-      for i in range(1, 3):
-        arg = args[i]
-        argn = arg.split('=')[0]
-        argv = arg.split('=')[1]
+      args = stmnt.replace(PYDPI_FILE_FEAT_STR_FUNC, '')
+      arg_tuple = args.replace('=', '').replace(' ', '').replace(PYDPI_PARAM_NAME_RETVAL, '"{}",'.format(PYDPI_PARAM_NAME_RETVAL)).replace(PYDPI_PARAM_NAME_PARAM, '"{}",'.format(PYDPI_PARAM_NAME_PARAM))
+      arg_tuple = ast.literal_eval(arg_tuple)
+      func_name = arg_tuple[0]
+      for i in [1, 3]:
+        argn = arg_tuple[i]
+        argv = arg_tuple[i+1]
         if argn == PYDPI_PARAM_NAME_RETVAL:
-          retval_width = int(argv)
+          retval_width = argv
         elif argn == PYDPI_PARAM_NAME_PARAM:
-          params_width = [int(val) for val in argv.split(',')]
+          params_width = argv
       func_specs[func_name] = (retval_width, params_width)
 
   for func_name in func_specs.keys():
@@ -193,6 +194,7 @@ def run_gen_param():
 def run_gen_mod():
   import importlib
   import sys
+  import string
   if not os.path.exists(prefix):
     os.mkdir(prefix)
   if not os.path.exists(py_prefix):
@@ -211,8 +213,6 @@ def run_gen_mod():
     io_spec = _mod_class.io_spec
 
     ports_str = ''
-    i_ports_str = ''
-    i_ports_width = ''
     for port_name in io_spec:
       port_type, port_width = io_spec[port_name]
       if port_type == pydpi.PORT_OUTPUT:
@@ -221,8 +221,6 @@ def run_gen_mod():
         type_str = 'output reg'
       elif port_type == pydpi.PORT_INPUT:
         type_str = 'input wire'
-        i_ports_str += '{}, '.format(port_name)
-        i_ports_width += '{}, '.format(port_width)
       elif port_type == pydpi.PORT_INPUT_CLOCK:
         type_str = 'input wire'
       else:
@@ -231,7 +229,6 @@ def run_gen_mod():
       port_str = '{} {} {},\n'.format(type_str, width_str, port_name)
       ports_str += port_str
     ports_str = ports_str[:-2]
-    i_ports_str = i_ports_str[:-2]
 
     func_declarations = ''
     assigns_str = ''
@@ -239,16 +236,27 @@ def run_gen_mod():
     py_func_str = ''
     for port_name in io_spec:
       port_type, port_width = io_spec[port_name]
-      if port_type == pydpi.PORT_OUTPUT:
-        assigns_str += 'assign {1} = _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
-      elif port_type == pydpi.PORT_OUTPUT_REG:
-        state_update_str += '{1} <= _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
-
       if port_type == pydpi.PORT_OUTPUT or port_type == pydpi.PORT_OUTPUT_REG:
+        if hasattr(_mod_class, port_name):
+          _method = getattr(_mod_class, port_name)
+          _arg_names = _method.im_func.func_code.co_varnames
+          _i_names = _arg_names[1:] # w/o 'self' argument
+          _i_widths = [io_spec[p_name][1] for p_name in _i_names]
+          _i_widths_str = [str(p_width) for p_width in _i_widths]
+          i_ports_str = string.join(_i_names, ', ')
+          i_ports_width = string.join(_i_widths_str, ', ')+',' # to be interpreted as tuple
+        else:
+          print('missing output method!')
+          assert False
         func_declarations += '`include "pydpi_gen_func__pydpi_mod_{}_func_{}.sv"\n'.format(fn, port_name)
         py_func_str += ('pydpi.export("_pydpi_mod_{0}_func_{1}", retval_width={2}, params_width=({3}))\n'
           + 'def _pydpi_mod_{0}_func_{1}({4}):\n'
           + '  return _inst.{1}({4})\n\n').format(fn, port_name, port_width, i_ports_width, i_ports_str)
+
+      if port_type == pydpi.PORT_OUTPUT:
+        assigns_str += 'assign {1} = _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
+      elif port_type == pydpi.PORT_OUTPUT_REG:
+        state_update_str += '{1} <= _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
 
     func_declarations = func_declarations[:-1]
     assigns_str = assigns_str[:-1]
@@ -282,9 +290,9 @@ def run_build_bridge():
 def run_run():
   kwargs = {
       }
-  flags = '+nc64bit +sv +sv_lib=./cache/pydpi_bridge.so +access+r +incdir+"./cache/svlog" -mccodegen cache/test.sv'.format(**kwargs)
+  flags = '+nc64bit +sv +sv_lib=./cache/pydpi_bridge.so +access+r +incdir+"./cache/svlog" -mccodegen src/test.sv'.format(**kwargs)
   my_env = os.environ.copy()
   my_env["PYTHONPATH"] = "./cache/python:" + my_env["PYTHONPATH"]
-  copytree(input_path, prefix)
+  #copytree(input_path, prefix)
   assert 0 == call(['ncverilog'] + flags.split(), env=my_env)
   print('pydpi done')
