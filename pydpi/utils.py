@@ -7,7 +7,7 @@ this_dir, this_filename = os.path.split(__file__)
 tmpl_dir = os.path.join(this_dir, "templates/")
 home_dir = os.path.expanduser('~')
 config_file = os.path.join(home_dir, '.python-svlog-cfg')
-config_file = 'svlog-cfg.yaml' # TODO: use multi config files
+config_file = 'svlog-cfg.json' # TODO: use multi config files
 if not os.path.isfile(config_file):
   pretty_json = {
       'sort_keys': True,
@@ -29,7 +29,7 @@ if not os.path.isfile(config_file):
   print('Created {} since it does not exist. Please fill the fields and re-run'.format(config_file))
   exit(1)
 else:
-  conf = anyconfig.load(config_file, 'json')
+  conf = anyconfig.load(config_file, 'json')['env']
   input_path = conf['input_path']
   prefix = conf['prefix']
   py_prefix = os.path.join(prefix, 'python/')
@@ -45,6 +45,7 @@ PYDPI_SYS_WORD_IN = 'input [{msb}:0] pydpi_arg{idx};'
 PYDPI_SYS_WBUF = 'PyDPI_buf_write(PYDPI_FUNC_{func_name}, {buf_addr}, {{{data}}});'
 PYDPI_SYS_RBUF = 'tmp = PyDPI_buf_read(PYDPI_FUNC_{func_name}, {buf_addr});'
 PYDPI_SYS_FLUSH = '{func_name}[{retval_msb}:{retval_lsb}] = tmp[{msb}:{lsb}];'
+PYDPI_SYS_DEFINE_PARAM = '`define {param_name} {param_val}'
 def is_candidate_file(fname, feat_str=None, prefix=None):
   prefix = input_path if prefix is None else prefix
   fpath = prefix + fname
@@ -201,7 +202,16 @@ def run_gen():
       }, prefix=sv_prefix)
 
 def run_gen_param():
-  print 'TODO' # TODO: e.g. `WIN_SIZE -> `PyDPI__WIN_SIZE
+  import string
+  import pydpi
+  params = pydpi.get_params()
+  params_str = [PYDPI_SYS_DEFINE_PARAM.format(**{
+    'param_name': param_name,
+    'param_val': params[param_name],
+    }) for param_name in params.keys()]
+  gen('pydpi_gen_params.sv', params={
+    'params_str': string.join(params_str, '\n')
+    }, prefix=sv_prefix)
 
 def run_gen_mod():
   import importlib

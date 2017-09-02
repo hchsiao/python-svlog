@@ -1,8 +1,10 @@
+`include "pydpi_gen_params.sv"
 `include "pydpi_gen_mod_my_mod.sv"
 
 module test;
   parameter CLK_PERIOD = 10;
   parameter SIM_CYCLE = 6;
+  parameter OUT_WIDTH = `EXAMPLE_PARAM;
 
 	reg reset;
 	reg clk;
@@ -10,7 +12,7 @@ module test;
     clk = ~clk;
   end
 
-  wire [6:0] mod_out;
+  wire [OUT_WIDTH-1:0] mod_out;
   wire [4:0] mod_in = 3;
 	initial begin
     $monitor("mod_out=%d", mod_out);

@@ -91,3 +91,10 @@ def export(name, retval_width=None, params_width=None):
 
 def __reg_mod(mod):
   mods[mod.__name__] = mod
+
+def get_params():
+  import anyconfig
+  config_file = 'svlog-cfg.json' # TODO: use multi config files
+  conf = anyconfig.load(config_file, 'json')
+  return conf['params']
+

@@ -1,8 +1,9 @@
 import pydpi
+OUT_WIDTH = pydpi.get_params()['EXAMPLE_PARAM']
 
 class my_mod(pydpi.SvModule):
   io_spec = {
-    'mod_out': pydpi.OUTPUT_REG(7),
+    'mod_out': pydpi.OUTPUT_REG(OUT_WIDTH),
     'mod_in': pydpi.INPUT(5),
     'reset': pydpi.INPUT(1),
     'clk': pydpi.INPUT_CLOCK(),
