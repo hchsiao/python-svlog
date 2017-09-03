@@ -94,7 +94,7 @@ def __reg_mod(mod):
 
 def get_params():
   import anyconfig
-  config_file = 'svlog-cfg.json' # TODO: use multi config files
-  conf = anyconfig.load(config_file, 'json')
+  config_file = 'svlog-cfg.yaml' # TODO: use multi config files
+  conf = anyconfig.load(config_file, 'yaml')
   return conf['params']
 

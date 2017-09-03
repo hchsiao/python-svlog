@@ -3,18 +3,16 @@ import subprocess
 import shutil
 import anyconfig
 
+from ruamel.yaml import YAML
+import sys
+
 this_dir, this_filename = os.path.split(__file__)
 tmpl_dir = os.path.join(this_dir, "templates/")
 home_dir = os.path.expanduser('~')
 config_file = os.path.join(home_dir, '.python-svlog-cfg')
-config_file = 'svlog-cfg.json' # TODO: use multi config files
+config_file = 'svlog-cfg.yaml' # TODO: use multi config files
 if not os.path.isfile(config_file):
-  pretty_json = {
-      'sort_keys': True,
-      'indent': 2,
-      'separators': (',', ': '),
-      }
-  anyconfig.dump({
+  data = {
     'env': {
       'input_path': './src/',
       'prefix': 'cache/',
@@ -25,11 +23,13 @@ if not os.path.isfile(config_file):
     'params': {
       'EXAMPLE_PARAM': 5
       },
-    }, config_file, 'json', **pretty_json)
+    }
+  yaml = YAML()
+  yaml.dump(data, open(config_file, 'w'))
   print('Created {} since it does not exist. Please fill the fields and re-run'.format(config_file))
   exit(1)
 else:
-  conf = anyconfig.load(config_file, 'json')['env']
+  conf = anyconfig.load(config_file, 'yaml')['env']
   input_path = conf['input_path']
   prefix = conf['prefix']
   py_prefix = os.path.join(prefix, 'python/')
