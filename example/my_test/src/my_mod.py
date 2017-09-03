@@ -8,6 +8,11 @@ class my_mod(pydpi.SvModule):
     'reset': pydpi.INPUT(1),
     'clk': pydpi.INPUT_CLOCK(),
   }
+
+  def _state_update(self, reset, mod_in):
+    print 'state update!!'
+    return
+
   def mod_out(self, reset, mod_in):
     if reset == 1:
       self.state = 0

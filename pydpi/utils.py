@@ -259,6 +259,21 @@ def run_gen_mod():
     assigns_str = ''
     state_update_str = ''
     py_func_str = ''
+
+    _method = getattr(_mod_class, '_state_update')
+    _arg_names = _method.im_func.func_code.co_varnames
+    _i_names = _arg_names[1:] # w/o 'self' argument
+    if len(_i_names) > 0:
+      _i_widths = [io_spec[p_name][1] for p_name in _i_names]
+      _i_widths_str = [str(p_width) for p_width in _i_widths]
+      i_ports_str = string.join(_i_names, ', ')
+      i_ports_width = string.join(_i_widths_str, ', ')+',' # to be interpreted as tuple
+      func_declarations += '`include "pydpi_gen_func__pydpi_mod_{}_state_update.sv"\n'.format(fn)
+      state_update_str += '_dummy = _pydpi_mod_{0}_state_update({1});\n'.format(fn, i_ports_str)
+      py_func_str += ('pydpi.export("_pydpi_mod_{0}_state_update", retval_width={2}, params_width=({3}))\n'
+        + 'def _pydpi_mod_{0}_state_update({4}):\n'
+        + '  return _inst._state_update({4})\n\n').format(fn, '', 1, i_ports_width, i_ports_str)
+
     for port_name in io_spec:
       port_type, port_width = io_spec[port_name]
       if port_type == pydpi.PORT_OUTPUT or port_type == pydpi.PORT_OUTPUT_REG:

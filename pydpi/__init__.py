@@ -26,6 +26,9 @@ class SvModule:
   def __init__(self):
     print('SvModule created')
 
+  def _state_update(self):
+    return
+
 class SvFunctionHandle:
   func_name_list = []
   func_map = {}
@@ -73,6 +76,7 @@ class SvFunctionHandle:
     # call the function
     callback = getattr(mods[self.mod_name], self.func_name)
     retval = callback(*argv)
+    retval = 0 if retval is None else retval
     # pack return value (retval)
     retval_required_byte = (self.retval_width+7)/8
     retval_mask = 2**self.retval_width - 1
