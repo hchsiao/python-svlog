@@ -134,6 +134,7 @@ def run_gen():
           params_width = argv
       func_specs[func_name] = (retval_width, params_width)
 
+  func_id = 0
   for func_name in func_specs.keys():
     func_spec = func_specs[func_name]
     out_width = func_spec[0]
@@ -195,11 +196,13 @@ def run_gen():
         }) + '\n    '
     gen('pydpi_gen_func_{func_name}.sv', params={
       'func_name': func_name,
+      'func_id': func_id,
       'retval_msb': out_width-1,
       'decl_input': decl_input.strip(),
       'stmnt_wbuf': stmnt_wbuf.strip(),
       'stmnt_rbuf': stmnt_rbuf.strip(),
       }, prefix=sv_prefix)
+    func_id += 1
 
 def run_gen_param():
   import string
