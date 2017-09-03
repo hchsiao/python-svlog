@@ -117,6 +117,7 @@ def run_gen():
     }, prefix=py_prefix)
 
   func_specs = {}
+  func_nlist_ordered = []
   for fn in func_file_list:
     src = open(input_path + fn + '.py').read().split('\n')
     export_statements = [line for line in src if PYDPI_FILE_FEAT_STR_FUNC in line]
@@ -133,9 +134,10 @@ def run_gen():
         elif argn == PYDPI_PARAM_NAME_PARAM:
           params_width = argv
       func_specs[func_name] = (retval_width, params_width)
+      func_nlist_ordered.append(func_name)
 
   func_id = 0
-  for func_name in func_specs.keys():
+  for func_name in func_nlist_ordered:
     func_spec = func_specs[func_name]
     out_width = func_spec[0]
     in_widths = func_spec[1]
@@ -296,7 +298,7 @@ def run_gen_mod():
       if port_type == pydpi.PORT_OUTPUT:
         assigns_str += 'assign {1} = _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
       elif port_type == pydpi.PORT_OUTPUT_REG:
-        state_update_str += '{1} <= _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
+        state_update_str += '{1} = _pydpi_mod_{0}_func_{1}({2});\n'.format(fn, port_name, i_ports_str)
 
     func_declarations = func_declarations[:-1]
     assigns_str = assigns_str[:-1]
