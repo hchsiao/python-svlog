@@ -7,12 +7,14 @@ import "DPI-C" context function byte PyDPI_buf_read(byte func_id, byte addr);
 
 initial begin
   PyDPI_init();
-  //PyDPI_destroy();
 end
 
 export "DPI" function PyDPI_callback;
 function void PyDPI_callback(byte cmd);
   case(cmd)
-    1: $finish();
+    1: begin
+      PyDPI_destroy();
+      $finish();
+    end
   endcase
 endfunction
