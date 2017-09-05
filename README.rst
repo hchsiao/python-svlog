@@ -14,3 +14,5 @@ pydpi-run
 TODO: 
 programmable param
 insert file headers
+inter-module communication
+stop simulation when 1. python exception 2. python want to

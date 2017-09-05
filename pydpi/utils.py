@@ -328,6 +328,7 @@ def run_build_bridge():
       'ldflags': subprocess.check_output([conf['py_cfg'], '--ldflags']),
       }
   flags = '-fPIC -shared -o {out_file} {in_file} -I{inc} {cflags} {ldflags}'.format(**kwargs)
+  print('running: {} {}'.format(CC, flags))
   assert 0 == call([CC] + flags.split())
   print('Build success')
 

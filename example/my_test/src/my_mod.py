@@ -10,12 +10,14 @@ class my_mod(pydpi.SvModule):
   }
 
   def _state_update(self, reset, mod_in):
-    print 'state update!!'
-    return
-
-  def mod_out(self, reset, mod_in):
+    import pydpi.dispatch
     if reset == 1:
       self.state = 0
     else:
       self.state += mod_in
+    if self.state > 4:
+      pydpi.dispatch.finish()
+    return
+
+  def mod_out(self, reset, mod_in):
     return self.state

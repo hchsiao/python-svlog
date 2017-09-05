@@ -9,3 +9,8 @@ initial begin
   PyDPI_init();
   //PyDPI_destroy();
 end
+
+export "DPI" function PyDPI_callback;
+function void PyDPI_callback(byte cmd);
+  $display("hihiiiiiiiiiiiiiiiiiiiiiiiiiii %d", cmd);
+endfunction

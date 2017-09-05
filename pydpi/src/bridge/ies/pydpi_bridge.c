@@ -6,9 +6,12 @@
 #define PY_FUNC_TRIGGER "_Eval"
 #define PY_FUNC_SET "_Set"
 #define PY_FUNC_GET "_Get"
+#define CB_CMD_NULL 0
 
 PyObject *pModule, *pFuncDestroy, *pFuncTrigger, *pFuncGet, *pFuncSet;
 static uint8_t init_flag = 0;
+
+extern void PyDPI_callback(int cmd);
 
 void PyDPI_destroy() {
   PyObject *pArgs;
@@ -64,13 +67,26 @@ void PyDPI_init() {
 
 void PyDPI_eval(uint8_t func_id) {
   PyObject *pArgs, *pValue;
+  uint8_t retval = 0;
 
   pArgs = PyTuple_New(1);
   pValue = PyInt_FromLong(func_id);
   PyTuple_SetItem(pArgs, 0, pValue);
 
-  PyObject_CallObject(pFuncTrigger, pArgs);
+  pValue = PyObject_CallObject(pFuncTrigger, pArgs);
   Py_DECREF(pArgs);
+
+  if (pValue != NULL) {
+    // printf("Result of call: %ld\n", PyInt_AsLong(pValue));
+    retval = PyInt_AsLong(pValue);
+    Py_DECREF(pValue);
+    if(retval != CB_CMD_NULL)
+      PyDPI_callback(retval);
+  }
+  else {
+    PyErr_Print();
+    fprintf(stderr,"Call failed\n");
+  }
 }
 
 void PyDPI_buf_write(uint8_t func_id, uint8_t addr, uint8_t data) {

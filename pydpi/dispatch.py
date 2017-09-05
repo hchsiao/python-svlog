@@ -2,7 +2,12 @@ import struct
 import os, sys, traceback
 
 import pydpi
-import pydpi_gen_registration
+try:
+  import pydpi_gen_registration
+except ImportError:
+  print('pydpi_gen_registration module not found')
+
+__last_callback_cmd = 0
 
 def _Set(func_id, addr, data):
   f = pydpi.get_func_hndl(func_id)
@@ -13,9 +18,13 @@ def _Get(func_id, addr):
   return struct.unpack('B', f.buf[addr])[0]
 
 def _Eval(func_id):
+  global __last_callback_cmd
   try:
     f = pydpi.get_func_hndl(func_id)
     f()
+    retval = __last_callback_cmd
+    __last_callback_cmd = 0
+    return retval
   except Exception, e:
     exc_type, exc_obj, exc_tb = sys.exc_info()
     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -25,7 +34,8 @@ def _Eval(func_id):
     raise
 
 def _Destroy():
-  #ra.destroy() # needed to save responses
-  print 'Destroy!!!'
   return
 
+def finish():
+  global __last_callback_cmd
+  __last_callback_cmd = 1
