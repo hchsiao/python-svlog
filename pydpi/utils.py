@@ -263,9 +263,12 @@ def run_gen_mod():
     py_func_str = ''
 
     _method = getattr(_mod_class, '_state_update')
-    _arg_names = _method.im_func.func_code.co_varnames
+    _var_names = _method.im_func.func_code.co_varnames
+    _arg_count = _method.im_func.func_code.co_argcount
+    _arg_names = _var_names[:_arg_count]
     _i_names = _arg_names[1:] # w/o 'self' argument
     if len(_i_names) > 0:
+      print _i_names
       _i_widths = [io_spec[p_name][1] for p_name in _i_names]
       _i_widths_str = [str(p_width) for p_width in _i_widths]
       i_ports_str = string.join(_i_names, ', ')
