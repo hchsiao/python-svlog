@@ -268,7 +268,6 @@ def run_gen_mod():
     _arg_names = _var_names[:_arg_count]
     _i_names = _arg_names[1:] # w/o 'self' argument
     if len(_i_names) > 0:
-      print _i_names
       _i_widths = [io_spec[p_name][1] for p_name in _i_names]
       _i_widths_str = [str(p_width) for p_width in _i_widths]
       i_ports_str = string.join(_i_names, ', ')
